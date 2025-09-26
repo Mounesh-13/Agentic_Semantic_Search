@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
 # LangChain & Gemini integration
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -14,7 +15,13 @@ load_dotenv()
 gemini_key = os.getenv("GOOGLE_API_KEY")
 serpapi_key = os.getenv("SERPAPI_API_KEY")
 
-app = Flask(__name__)
+CORS(app)
+
+# Serve React frontend from front/build when available (production)
+front_build_path = Path(__file__).resolve().parent.joinpath('..', 'front', 'build')
+front_build_path = str(front_build_path)
+
+app = Flask(__name__, static_folder=front_build_path, static_url_path='/')
 CORS(app)
 
 # Set up LLM and Search Agent
@@ -62,4 +69,25 @@ def health():
     return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # In local/dev we keep debug on, but in production Gunicorn will be used.
+    debug_flag = os.getenv('FLASK_DEBUG', 'True').lower() in ('1', 'true', 'yes')
+    app.run(host="0.0.0.0", port=int(os.getenv('PORT', 5000)), debug=debug_flag)
+
+
+# Serve React's index.html for any other route (client-side routing support)
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    """Serve the React app's static files. If a file isn't found, return index.html
+
+    This allows client-side routing to work when the app is deployed as a
+    single container that serves both API and frontend.
+    """
+    try:
+        # If the requested resource exists in the build static folder, serve it
+        if path != "" and (Path(app.static_folder) / path).exists():
+            return send_from_directory(app.static_folder, path)
+        # Otherwise serve index.html
+        return send_from_directory(app.static_folder, 'index.html')
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Frontend not built'}), 500

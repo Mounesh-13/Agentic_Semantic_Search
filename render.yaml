@@ -1,0 +1,20 @@
+# Render service configuration for deploying this repo using Docker
+# See https://render.com/docs/deploy-docker for details.
+
+services:
+  - type: web
+    name: agentic-semantic-search
+    env: docker
+    dockerCommand: null
+    dockerfilePath: Dockerfile
+    plan: starter
+    # Optional: set env vars on Render dashboard instead of here for secrets
+    envVars:
+      - key: GOOGLE_API_KEY
+        value: ''
+        generateValue: false
+      - key: SERPAPI_API_KEY
+        value: ''
+        generateValue: false
+      - key: FLASK_DEBUG
+        value: 'False'
